@@ -49,7 +49,7 @@ export default function Doca() {
         const nunotaVal = nota.trim() || null;
         const { data: notaCriada, error: errNota } = await supabase
           .from('nota')
-          .insert([{ codigo_usuario: codigoUsuario, codigo_endereco: endereco.codigo, nunota: nunotaVal }])
+          .insert([{ codigo_usuario: codigoUsuario, codigo_endereco: endereco.codigo, chavenfe: nunotaVal }])
           .select()
           .single();
 
