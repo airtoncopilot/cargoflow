@@ -3,6 +3,7 @@ import LoginPage from "@/react-app/pages/Login";
 import MenuPage from "@/react-app/pages/Menu";
 import DocaPage from "@/react-app/pages/Doca";
 import RomaneioPage from "@/react-app/pages/Romaneio";
+import ConsultaXMLPage from "@/react-app/pages/ConsultaXML";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Route path="/menu" element={<MenuPage />} />
         <Route path="/doca" element={<DocaPage />} />
         <Route path="/romaneio" element={<RomaneioPage />} />
+        <Route path="/consulta-xml" element={<ConsultaXMLPage />} />
       </Routes>
     </Router>
   );
