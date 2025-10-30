@@ -18,6 +18,7 @@ type EnderecoRegistro = {
 export default function ConsultaXML() {
   const navigate = useNavigate();
   const [buscaTexto, setBuscaTexto] = useState('');
+  const [buscaNumeroNota, setBuscaNumeroNota] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{
@@ -25,19 +26,17 @@ export default function ConsultaXML() {
     doca?: string | null;
   } | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const consultarPorNunota = async (nunotaTerm: string) => {
     setErro(null);
     setResultado(null);
-    const termo = buscaTexto.trim();
-    if (!termo) {
-      setErro('Informe o valor a buscar no campo nunota.');
-      return;
-    }
-
     setCarregando(true);
     try {
-      // Busca direta em nunota pelo valor informado
+      const termo = nunotaTerm.trim();
+      if (!termo) {
+        setErro('Informe o valor a buscar no campo nunota.');
+        return;
+      }
+
       const { data: notas, error: errNota } = await supabase
         .from('nota')
         .select('codigo, codigo_endereco, codigo_usuario, nunota')
@@ -53,7 +52,6 @@ export default function ConsultaXML() {
         return;
       }
 
-      // Busca o endereço vinculado
       const { data: enderecos, error: errEnd } = await supabase
         .from('endereco')
         .select('codigo, descricao')
@@ -65,10 +63,30 @@ export default function ConsultaXML() {
       const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
       setResultado({ encontrado: true, doca: endereco?.descricao ?? null });
     } catch (e: unknown) {
-      setErro(e instanceof Error ? e.message : 'Erro ao consultar o XML');
+      setErro(e instanceof Error ? e.message : 'Erro ao consultar');
     } finally {
       setCarregando(false);
     }
+  };
+
+  const handlePesquisarNunota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await consultarPorNunota(buscaTexto);
+  };
+
+  const handlePesquisarNumeroNotaRecortado = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro(null);
+    setResultado(null);
+    const fonte = buscaNumeroNota;
+    const texto = fonte ?? '';
+    // Posições 26 a 34 (1-based) => índices 25..34 (0-based), total 9 chars
+    if (texto.length < 34) {
+      setErro('O texto informado deve conter ao menos 34 caracteres para recorte (26 a 34).');
+      return;
+    }
+    const recorte = texto.substring(25, 34);
+    await consultarPorNunota(recorte);
   };
 
   return (
@@ -90,8 +108,8 @@ export default function ConsultaXML() {
                 <FileText className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Consulta de XML</h1>
-                <p className="text-sm text-blue-200">Verificar vínculo de nota por XML</p>
+                <h1 className="text-xl font-bold text-white">Consulta</h1>
+                <p className="text-sm text-blue-200">Pesquisar notas por nunota</p>
               </div>
             </div>
           </div>
@@ -100,22 +118,44 @@ export default function ConsultaXML() {
 
       {/* Form */}
       <div className="relative p-6 max-w-2xl mx-auto">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block text-blue-200 text-sm">Informe o valor para buscar no campo nunota</label>
-          <input
-            value={buscaTexto}
-            onChange={(e) => setBuscaTexto(e.target.value)}
-            className="w-full rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-            placeholder="Ex.: 163748281 ou 2925...6734632"
-          />
-          <button
-            type="submit"
-            disabled={carregando}
-            className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl transition-all"
-          >
-            <Search className="w-4 h-4" />
-            <span>{carregando ? 'Consultando...' : 'Consultar'}</span>
-          </button>
+        <form onSubmit={handlePesquisarNunota} className="space-y-4">
+          <label className="block text-blue-200 text-sm">Pesquisar por nunota (valor exato)</label>
+          <div className="flex gap-3 items-center">
+            <input
+              value={buscaTexto}
+              onChange={(e) => setBuscaTexto(e.target.value)}
+              className="flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              placeholder="Ex.: 163748281 ou 2925...6734632"
+            />
+            <button
+              type="submit"
+              disabled={carregando}
+              className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl transition-all"
+            >
+              <Search className="w-4 h-4" />
+              <span>{carregando ? 'Pesquisando...' : 'Pesquisar'}</span>
+            </button>
+          </div>
+        </form>
+
+        <form onSubmit={handlePesquisarNumeroNotaRecortado} className="space-y-4 mt-6">
+          <label className="block text-blue-200 text-sm">Pesquisar pelo recorte (posições 26 a 34) de um texto</label>
+          <div className="flex gap-3 items-center">
+            <input
+              value={buscaNumeroNota}
+              onChange={(e) => setBuscaNumeroNota(e.target.value)}
+              className="flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              placeholder="Cole a chave ou texto que contenha a nota"
+            />
+            <button
+              type="submit"
+              disabled={carregando}
+              className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl transition-all"
+            >
+              <Search className="w-4 h-4" />
+              <span>{carregando ? 'Pesquisando...' : 'Pesquisar'}</span>
+            </button>
+          </div>
         </form>
 
         {/* Feedback */}
