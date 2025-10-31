@@ -78,15 +78,48 @@ export default function ConsultaXML() {
     e.preventDefault();
     setErro(null);
     setResultado(null);
-    const fonte = buscaNumeroNota;
-    const texto = fonte ?? '';
-    // Posições 26 a 34 (1-based) => índices 25..34 (0-based), total 9 chars
-    if (texto.length < 34) {
-      setErro('O texto informado deve conter ao menos 34 caracteres para recorte (26 a 34).');
+    const numero = (buscaNumeroNota || '').replace(/\D/g, '');
+    if (!numero) {
+      setErro('Informe o número da nota.');
       return;
     }
-    const recorte = texto.substring(25, 34);
-    await consultarPorNunota(recorte);
+
+    // Alinha com: SUBSTRING(nunota, 26, 9) = LPAD(numero, 9, '0')
+    const padded = numero.padStart(9, '0');
+
+    setCarregando(true);
+    try {
+      const likePattern = `${'_'.repeat(25)}${padded}%`;
+      const { data: notas, error: errNota } = await supabase
+        .from('nota')
+        .select('codigo, codigo_endereco, codigo_usuario, nunota')
+        .like('nunota', likePattern)
+        .limit(1);
+      if (errNota) throw errNota;
+
+      const notasRows: NotaRegistro[] = (notas as unknown as NotaRegistro[] | null) ?? [];
+      const nota: NotaRegistro | null = notasRows.length > 0 ? notasRows[0] : null;
+
+      if (!nota) {
+        setResultado({ encontrado: false });
+        return;
+      }
+
+      const { data: enderecos, error: errEnd } = await supabase
+        .from('endereco')
+        .select('codigo, descricao')
+        .eq('codigo', nota.codigo_endereco)
+        .limit(1);
+      if (errEnd) throw errEnd;
+
+      const endRows: EnderecoRegistro[] = (enderecos as unknown as EnderecoRegistro[] | null) ?? [];
+      const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
+      setResultado({ encontrado: true, doca: endereco?.descricao ?? null });
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao consultar');
+    } finally {
+      setCarregando(false);
+    }
   };
 
   return (
@@ -139,13 +172,13 @@ export default function ConsultaXML() {
         </form>
 
         <form onSubmit={handlePesquisarNumeroNotaRecortado} className="space-y-4 mt-6">
-          <label className="block text-blue-200 text-sm">Pesquisar pelo recorte (posições 26 a 34) de um texto</label>
+          <label className="block text-blue-200 text-sm">Pesquisar pelo número da nota (equivalente a SUBSTRING(nunota,26,9)=LPAD(num,9,'0'))</label>
           <div className="flex gap-3 items-center">
             <input
               value={buscaNumeroNota}
               onChange={(e) => setBuscaNumeroNota(e.target.value)}
               className="flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              placeholder="Cole a chave ou texto que contenha a nota"
+              placeholder="Ex.: 180165"
             />
             <button
               type="submit"
