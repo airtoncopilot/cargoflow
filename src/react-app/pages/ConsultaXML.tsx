@@ -8,6 +8,7 @@ type NotaRegistro = {
   codigo_endereco: number;
   codigo_usuario: number;
   nunota: string | null;
+  chavenfe: string | null;
 };
 
 type EnderecoRegistro = {
@@ -39,8 +40,8 @@ export default function ConsultaXML() {
 
       const { data: notas, error: errNota } = await supabase
         .from('nota')
-        .select('codigo, codigo_endereco, codigo_usuario, nunota')
-        .eq('nunota', termo)
+        .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
+        .or(`nunota.eq.${termo},chavenfe.eq.${termo}`)
         .limit(1);
       if (errNota) throw errNota;
 
@@ -92,8 +93,8 @@ export default function ConsultaXML() {
       const likePattern = `${'_'.repeat(25)}${padded}%`;
       const { data: notas, error: errNota } = await supabase
         .from('nota')
-        .select('codigo, codigo_endereco, codigo_usuario, nunota')
-        .like('nunota', likePattern)
+        .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
+        .or(`nunota.like.${likePattern},chavenfe.like.${likePattern}`)
         .limit(1);
       if (errNota) throw errNota;
 
