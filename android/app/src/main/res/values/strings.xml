@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CargoFlow</string>
-    <string name="title_activity_main">CargoFlow</string>
-    <string name="package_name">com.cargoflow.app</string>
-    <string name="custom_url_scheme">com.cargoflow.app</string>
+    <string name="app_name">DocXpress</string>
+    <string name="title_activity_main">DocXpress</string>
+    <string name="package_name">com.docxpress.app</string>
+    <string name="custom_url_scheme">com.docxpress.app</string>
 </resources>

@@ -16,7 +16,7 @@ export default function Menu() {
               <Truck className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">CargoFlow</h1>
+              <h1 className="text-xl font-bold text-white">DocXpress</h1>
               <p className="text-sm text-blue-200">Menu Principal</p>
             </div>
           </div>

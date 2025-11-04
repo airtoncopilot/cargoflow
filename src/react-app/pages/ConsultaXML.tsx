@@ -154,17 +154,17 @@ export default function ConsultaXML() {
       <div className="relative p-6 max-w-2xl mx-auto">
         <form onSubmit={handlePesquisarNunota} className="space-y-4">
           <label className="block text-blue-200 text-sm">Pesquisar por nunota (valor exato)</label>
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
             <input
               value={buscaTexto}
               onChange={(e) => setBuscaTexto(e.target.value)}
-              className="flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              className="w-full sm:flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               placeholder="Ex.: 163748281 ou 2925...6734632"
             />
             <button
               type="submit"
               disabled={carregando}
-              className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl transition-all"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-4 sm:py-2 rounded-xl transition-all"
             >
               <Search className="w-4 h-4" />
               <span>{carregando ? 'Pesquisando...' : 'Pesquisar'}</span>
@@ -173,18 +173,18 @@ export default function ConsultaXML() {
         </form>
 
         <form onSubmit={handlePesquisarNumeroNotaRecortado} className="space-y-4 mt-6">
-          <label className="block text-blue-200 text-sm">Pesquisar pelo número da nota (equivalente a SUBSTRING(nunota,26,9)=LPAD(num,9,'0'))</label>
-          <div className="flex gap-3 items-center">
+          <label className="block text-blue-200 text-sm">Pesquisar pelo número da nota</label>
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
             <input
               value={buscaNumeroNota}
               onChange={(e) => setBuscaNumeroNota(e.target.value)}
-              className="flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              className="w-full sm:flex-1 rounded-2xl bg-white/10 border border-white/20 p-4 text-white placeholder-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               placeholder="Ex.: 180165"
             />
             <button
               type="submit"
               disabled={carregando}
-              className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl transition-all"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 text-white px-5 py-4 sm:py-2 rounded-xl transition-all"
             >
               <Search className="w-4 h-4" />
               <span>{carregando ? 'Pesquisando...' : 'Pesquisar'}</span>
@@ -203,10 +203,12 @@ export default function ConsultaXML() {
         {resultado && (
           <div className="mt-6">
             {resultado.encontrado ? (
-              <div className="flex items-center space-x-3 text-green-200">
-                <CheckCircle className="w-5 h-5" />
-                <span>Nota encontrada.</span>
-              <div className="flex items-center space-x-2 text-blue-200 ml-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <div className="flex items-center space-x-3 text-green-200">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Nota encontrada.</span>
+                </div>
+                <div className="flex items-center space-x-2 text-blue-200">
                   <MapPin className="w-5 h-5" />
                   <span>Doca vinculada: {resultado.doca || 'Não informada'}</span>
                 </div>
@@ -214,7 +216,7 @@ export default function ConsultaXML() {
             ) : (
               <div className="flex items-center space-x-3 text-yellow-200">
                 <AlertCircle className="w-5 h-5" />
-              <span>Nota não encontrada para o número informado.</span>
+                <span>Nota não encontrada para o número informado.</span>
               </div>
             )}
           </div>

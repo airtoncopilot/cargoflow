@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.cargoflow.app',
-  appName: 'CargoFlow',
+  appId: 'com.docxpress.app',
+  appName: 'DocXpress',
   webDir: 'dist/client',
   server: {
     androidScheme: 'https'
