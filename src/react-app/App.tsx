@@ -4,6 +4,7 @@ import MenuPage from "@/react-app/pages/Menu";
 import DocaPage from "@/react-app/pages/Doca";
 import RomaneioPage from "@/react-app/pages/Romaneio";
 import ConsultaXMLPage from "@/react-app/pages/ConsultaXML";
+import DeletarNotaPage from "@/react-app/pages/DeletarNota";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/doca" element={<DocaPage />} />
         <Route path="/romaneio" element={<RomaneioPage />} />
         <Route path="/consulta-xml" element={<ConsultaXMLPage />} />
+        <Route path="/deletar-nota" element={<DeletarNotaPage />} />
       </Routes>
     </Router>
   );

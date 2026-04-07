@@ -112,4 +112,36 @@ app.get("/api/notas", async (c) => {
   }
 });
 
+app.delete("/api/notas/:nunota", async (c) => {
+  try {
+    const nunotaParam = c.req.param("nunota");
+    const nunota = Number(nunotaParam);
+
+    if (Number.isNaN(nunota)) {
+      return c.json(
+        { success: false, message: "nunota inválido. Informe um valor numérico." },
+        400
+      );
+    }
+
+    const index = notas.findIndex((n) => n.nunota === nunota);
+    if (index === -1) {
+      return c.json(
+        { success: false, message: "Registro não encontrado para o nunota informado." },
+        404
+      );
+    }
+
+    const [notaRemovida] = notas.splice(index, 1);
+    return c.json({
+      success: true,
+      message: "Registro removido com sucesso.",
+      data: notaRemovida,
+    });
+  } catch (error) {
+    console.error("Erro ao deletar nota por nunota:", error);
+    return c.json({ success: false, message: "Erro ao deletar nota." }, 500);
+  }
+});
+
 export default app;

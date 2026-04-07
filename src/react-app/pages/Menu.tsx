@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Package, FileText, Truck, LogOut, Warehouse } from 'lucide-react';
+import { Package, FileText, Truck, LogOut, Warehouse, Trash2 } from 'lucide-react';
 
 export default function Menu() {
   const navigate = useNavigate();
@@ -81,6 +81,22 @@ export default function Menu() {
               <div className="text-center">
                 <h3 className="text-xl font-bold text-white mb-2">Consulta de XML</h3>
                 <p className="text-blue-200 text-sm">Verificar nota e endereço vinculado</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Remover Nota */}
+          <button
+            onClick={() => navigate('/deletar-nota')}
+            className="group bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 hover:bg-white/20 hover:scale-105 transition-all duration-300 shadow-xl"
+          >
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                <Trash2 className="w-10 h-10 text-white" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-white mb-2">Remover Registro</h3>
+                <p className="text-blue-200 text-sm">Excluir notas por nunota</p>
               </div>
             </div>
           </button>
