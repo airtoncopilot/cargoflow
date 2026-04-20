@@ -5,6 +5,7 @@ import DocaPage from "@/react-app/pages/Doca";
 import RomaneioPage from "@/react-app/pages/Romaneio";
 import ConsultaXMLPage from "@/react-app/pages/ConsultaXML";
 import DeletarNotaPage from "@/react-app/pages/DeletarNota";
+import TransferenciaLocalPage from "@/react-app/pages/TransferenciaLocal";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/romaneio" element={<RomaneioPage />} />
         <Route path="/consulta-xml" element={<ConsultaXMLPage />} />
         <Route path="/deletar-nota" element={<DeletarNotaPage />} />
+        <Route path="/transferencia-local" element={<TransferenciaLocalPage />} />
       </Routes>
     </Router>
   );
