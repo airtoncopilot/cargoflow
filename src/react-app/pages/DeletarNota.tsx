@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Trash2, AlertCircle, CheckCircle } from "lucide-react";
+import { ArrowLeft, Send, AlertCircle, CheckCircle } from "lucide-react";
 import { supabase } from "@/shared/supabase";
 
 export default function DeletarNota() {
@@ -25,27 +25,43 @@ export default function DeletarNota() {
       setErro("");
       setMensagem("");
 
-      // 1) Busca exata por nunota/chavenfe
-      const { data: encontradosExatos, error: errorBuscaExata } = await supabase
+      // 1) Busca exata em nunota
+      const { data: exatosNunota, error: errorExataNunota } = await supabase
         .from("nota")
         .select("codigo, nunota, chavenfe")
-        .or(`nunota.eq.${termo},chavenfe.eq.${termo}`)
+        .eq("nunota", termo)
         .limit(100);
+      if (errorExataNunota) throw errorExataNunota;
 
-      if (errorBuscaExata) throw errorBuscaExata;
+      // 2) Busca exata em chavenfe
+      const { data: exatosChave, error: errorExataChave } = await supabase
+        .from("nota")
+        .select("codigo, nunota, chavenfe")
+        .eq("chavenfe", termo)
+        .limit(100);
+      if (errorExataChave) throw errorExataChave;
 
-      let encontrados = encontradosExatos ?? [];
+      let encontrados = [...(exatosNunota ?? []), ...(exatosChave ?? [])];
 
-      // 2) Fallback por LIKE (cobre diferenças de formatação)
+      // 3) Fallback por busca parcial (cobre diferenças de formatação)
       if (encontrados.length === 0) {
-        const { data: encontradosParciais, error: errorBuscaParcial } = await supabase
+        const likePattern = `%${termo}%`;
+
+        const { data: parciaisNunota, error: errorParcialNunota } = await supabase
           .from("nota")
           .select("codigo, nunota, chavenfe")
-          .or(`nunota.like.%${termo}%,chavenfe.like.%${termo}%`)
+          .like("nunota", likePattern)
           .limit(100);
+        if (errorParcialNunota) throw errorParcialNunota;
 
-        if (errorBuscaParcial) throw errorBuscaParcial;
-        encontrados = encontradosParciais ?? [];
+        const { data: parciaisChave, error: errorParcialChave } = await supabase
+          .from("nota")
+          .select("codigo, nunota, chavenfe")
+          .like("chavenfe", likePattern)
+          .limit(100);
+        if (errorParcialChave) throw errorParcialChave;
+
+        encontrados = [...(parciaisNunota ?? []), ...(parciaisChave ?? [])];
       }
 
       if (encontrados.length === 0) {
@@ -53,8 +69,8 @@ export default function DeletarNota() {
         return;
       }
 
-      // 3) Remove pelos códigos encontrados para evitar falhas de filtro no DELETE
-      const codigos = encontrados.map((item) => item.codigo);
+      // 4) Remove duplicidades e apaga pelos códigos encontrados
+      const codigos = [...new Set(encontrados.map((item) => item.codigo))];
       const { data: removidos, error: errorDelete } = await supabase
         .from("nota")
         .delete()
@@ -94,12 +110,12 @@ export default function DeletarNota() {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
-              <Trash2 className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
+              <Send className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Remover Registro</h1>
-              <p className="text-sm text-blue-200">Excluir por nunota</p>
+              <h1 className="text-xl font-bold text-white">Expedir nota</h1>
+              <p className="text-sm text-blue-200">Expedir por nunota</p>
             </div>
           </div>
         </div>
@@ -124,7 +140,7 @@ export default function DeletarNota() {
           <form onSubmit={handleDelete} className="space-y-6">
             <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 space-y-4">
               <div className="flex items-center space-x-3 mb-4">
-                <Trash2 className="w-6 h-6 text-red-400" />
+                <Send className="w-6 h-6 text-red-400" />
                 <h3 className="text-lg font-semibold text-white">Informar nunota</h3>
               </div>
 
@@ -143,8 +159,8 @@ export default function DeletarNota() {
               disabled={loading || !nunota.trim()}
               className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-5 px-6 rounded-2xl transition-all duration-200 transform hover:scale-105 shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              <Trash2 className="w-6 h-6" />
-              <span>{loading ? "Removendo..." : "Confirmar Remoção"}</span>
+              <Send className="w-6 h-6" />
+              <span>{loading ? "Expedindo..." : "Confirmar Expedição"}</span>
             </button>
           </form>
         </div>

@@ -93,7 +93,7 @@ app.get("/api/enderecos", async (c) => {
   try {
     const data = [...enderecos].sort((a, b) => b.created_at.localeCompare(a.created_at));
     return c.json({ success: true, data });
-  } catch (error) {
+  } catch {
     return c.json({ success: false, message: "Erro ao buscar endereços" }, 500);
   }
 });
@@ -107,7 +107,7 @@ app.get("/api/notas", async (c) => {
       }))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
     return c.json({ success: true, data });
-  } catch (error) {
+  } catch {
     return c.json({ success: false, message: "Erro ao buscar notas" }, 500);
   }
 });

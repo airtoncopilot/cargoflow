@@ -36,7 +36,9 @@ export default function Login() {
     try {
       localStorage.setItem('usuarioCodigo', String(registro.codigo));
       localStorage.setItem('usuarioLogin', String(registro.login));
-    } catch {}
+    } catch {
+      // Ignore storage errors; login can still proceed in restricted environments.
+    }
 
     navigate('/menu');
   };
