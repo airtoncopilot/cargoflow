@@ -15,27 +15,48 @@ export default function Doca() {
     e.preventDefault();
     if (doca && nota) {
       try {
-        // obter codigo do usuário logado (salvo no login)
-        const codigoUsuarioStr = localStorage.getItem('usuarioCodigo');
-        const codigoUsuario = Number(codigoUsuarioStr);
-        if (!Number.isFinite(codigoUsuario)) {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        const authId = authData.user?.id;
+        if (!authId) {
           throw new Error('Sessão inválida. Faça login novamente.');
         }
 
+        const { data: usuarios, error: errUsuario } = await supabase
+          .from('usuario')
+          .select('codigo')
+          .eq('auth_id', authId)
+          .limit(1);
+        if (errUsuario) throw errUsuario;
+        const codigoUsuario = usuarios?.[0]?.codigo;
+        if (!codigoUsuario) {
+          throw new Error('Usuário sem vínculo na tabela usuario.');
+        }
+
         // upsert endereço (doca)
-        const { data: enderecosExist, error: errBuscaEnd } = await supabase
+        const { data: enderecosByAuth, error: errBuscaEndAuth } = await supabase
           .from('endereco')
           .select('*')
           .eq('descricao', doca)
-          .eq('codigo_usuario', codigoUsuario)
+          .eq('auth_id', authId)
           .limit(1);
-        if (errBuscaEnd) throw errBuscaEnd;
+        if (errBuscaEndAuth) throw errBuscaEndAuth;
 
-        let endereco = enderecosExist && enderecosExist.length > 0 ? enderecosExist[0] : null;
+        let endereco = enderecosByAuth && enderecosByAuth.length > 0 ? enderecosByAuth[0] : null;
+        if (!endereco) {
+          const { data: enderecosByCodigo, error: errBuscaEndCodigo } = await supabase
+            .from('endereco')
+            .select('*')
+            .eq('descricao', doca)
+            .eq('codigo_usuario', codigoUsuario)
+            .limit(1);
+          if (errBuscaEndCodigo) throw errBuscaEndCodigo;
+          endereco = enderecosByCodigo && enderecosByCodigo.length > 0 ? enderecosByCodigo[0] : null;
+        }
         if (!endereco) {
           const { data: enderecoNovo, error: errEndIns } = await supabase
             .from('endereco')
-            .insert([{ codigo_usuario: codigoUsuario, descricao: doca }])
+            .insert([{ auth_id: authId, codigo_usuario: codigoUsuario, descricao: doca }])
             .select()
             .single();
           if (errEndIns) throw errEndIns;
@@ -49,7 +70,14 @@ export default function Doca() {
         const nunotaVal = nota.trim() || null;
         const { data: notaCriada, error: errNota } = await supabase
           .from('nota')
-          .insert([{ codigo_usuario: codigoUsuario, codigo_endereco: endereco.codigo, chavenfe: nunotaVal }])
+          .insert([
+            {
+              auth_id: authId,
+              codigo_usuario: codigoUsuario,
+              codigo_endereco: endereco.codigo,
+              chavenfe: nunotaVal,
+            },
+          ])
           .select()
           .single();
 

@@ -6,7 +6,7 @@ import { supabase } from '@/shared/supabase';
 type NotaRegistro = {
   codigo: number;
   codigo_endereco: number;
-  codigo_usuario: number;
+  auth_id: string;
   nunota: string | null;
   chavenfe: string | null;
 };
@@ -32,21 +32,59 @@ export default function ConsultaXML() {
     setResultado(null);
     setCarregando(true);
     try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!authData.user?.id) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
+
       const termo = nunotaTerm.trim();
       if (!termo) {
         setErro('Informe o valor a buscar no campo nunota.');
         return;
       }
-
-      const { data: notas, error: errNota } = await supabase
+      const { data: notasExatasNunota, error: errExataNunota } = await supabase
         .from('nota')
-        .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
-        .or(`nunota.eq.${termo},chavenfe.eq.${termo}`)
-        .limit(1);
-      if (errNota) throw errNota;
+        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
+        .eq('nunota', termo)
+        .limit(100);
+      if (errExataNunota) throw errExataNunota;
 
-      const notasRows: NotaRegistro[] = (notas as unknown as NotaRegistro[] | null) ?? [];
-      const nota: NotaRegistro | null = notasRows.length > 0 ? notasRows[0] : null;
+      const { data: notasExatasChave, error: errExataChave } = await supabase
+        .from('nota')
+        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
+        .eq('chavenfe', termo)
+        .limit(100);
+      if (errExataChave) throw errExataChave;
+
+      let encontrados: NotaRegistro[] = [
+        ...((notasExatasNunota as NotaRegistro[] | null) ?? []),
+        ...((notasExatasChave as NotaRegistro[] | null) ?? []),
+      ];
+
+      if (encontrados.length === 0) {
+        const likePattern = `%${termo}%`;
+        const { data: notasParciaisNunota, error: errParcialNunota } = await supabase
+          .from('nota')
+          .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
+          .ilike('nunota', likePattern)
+          .limit(100);
+        if (errParcialNunota) throw errParcialNunota;
+
+        const { data: notasParciaisChave, error: errParcialChave } = await supabase
+          .from('nota')
+          .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
+          .ilike('chavenfe', likePattern)
+          .limit(100);
+        if (errParcialChave) throw errParcialChave;
+
+        encontrados = [
+          ...((notasParciaisNunota as NotaRegistro[] | null) ?? []),
+          ...((notasParciaisChave as NotaRegistro[] | null) ?? []),
+        ];
+      }
+
+      const nota: NotaRegistro | null = encontrados.length > 0 ? encontrados[0] : null;
 
       if (!nota) {
         setResultado({ encontrado: false });
@@ -58,9 +96,7 @@ export default function ConsultaXML() {
         .select('codigo, descricao')
         .eq('codigo', nota.codigo_endereco)
         .limit(1);
-      if (errEnd) throw errEnd;
-
-      const endRows: EnderecoRegistro[] = (enderecos as unknown as EnderecoRegistro[] | null) ?? [];
+      const endRows: EnderecoRegistro[] = errEnd ? [] : ((enderecos as unknown as EnderecoRegistro[] | null) ?? []);
       const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
       setResultado({ encontrado: true, doca: endereco?.descricao ?? null });
     } catch (e: unknown) {
@@ -90,12 +126,17 @@ export default function ConsultaXML() {
 
     setCarregando(true);
     try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!authData.user?.id) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
       const likePattern = `${'_'.repeat(25)}${padded}%`;
       const { data: notas, error: errNota } = await supabase
         .from('nota')
-        .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
+        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
         .or(`nunota.like.${likePattern},chavenfe.like.${likePattern}`)
-        .limit(1);
+        .limit(100);
       if (errNota) throw errNota;
 
       const notasRows: NotaRegistro[] = (notas as unknown as NotaRegistro[] | null) ?? [];
@@ -111,9 +152,7 @@ export default function ConsultaXML() {
         .select('codigo, descricao')
         .eq('codigo', nota.codigo_endereco)
         .limit(1);
-      if (errEnd) throw errEnd;
-
-      const endRows: EnderecoRegistro[] = (enderecos as unknown as EnderecoRegistro[] | null) ?? [];
+      const endRows: EnderecoRegistro[] = errEnd ? [] : ((enderecos as unknown as EnderecoRegistro[] | null) ?? []);
       const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
       setResultado({ encontrado: true, doca: endereco?.descricao ?? null });
     } catch (e: unknown) {

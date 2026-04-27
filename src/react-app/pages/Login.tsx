@@ -14,30 +14,34 @@ export default function Login() {
     setError(null);
     if (!usuario || !senha) return;
 
-    // busca usuário por login
-    const { data: encontrados, error: errSel } = await supabase
-      .from('usuario')
-      .select('*')
-      .eq('login', usuario)
-      .limit(1);
-
-    if (errSel) {
-      setError('Erro ao autenticar: ' + errSel.message);
-      return;
-    }
-
-    const registro = encontrados && encontrados.length > 0 ? encontrados[0] : null;
-    if (!registro || registro.senha !== senha) {
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email: usuario.trim(),
+      password: senha,
+    });
+    if (signInError) {
       setError('Usuário ou senha inválidos.');
       return;
     }
 
-    // guarda o código do usuário logado
-    try {
-      localStorage.setItem('usuarioCodigo', String(registro.codigo));
-      localStorage.setItem('usuarioLogin', String(registro.login));
-    } catch {
-      // Ignore storage errors; login can still proceed in restricted environments.
+    const authId = data.user?.id;
+    if (!authId) {
+      setError('Sessão inválida. Tente novamente.');
+      return;
+    }
+
+    const { data: usuarioDb, error: usuarioError } = await supabase
+      .from('usuario')
+      .select('auth_id')
+      .eq('auth_id', authId)
+      .limit(1);
+    if (usuarioError) {
+      setError('Erro ao validar usuário no banco: ' + usuarioError.message);
+      return;
+    }
+    if (!usuarioDb || usuarioDb.length === 0) {
+      setError('Usuário autenticado, mas sem vínculo na tabela usuario.');
+      await supabase.auth.signOut();
+      return;
     }
 
     navigate('/menu');

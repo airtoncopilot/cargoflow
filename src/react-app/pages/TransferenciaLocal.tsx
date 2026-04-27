@@ -14,7 +14,7 @@ import { supabase } from '@/shared/supabase';
 type NotaRegistro = {
   codigo: number;
   codigo_endereco: number;
-  codigo_usuario: number;
+  auth_id: string;
   nunota: string | null;
   chavenfe: string | null;
 };
@@ -67,7 +67,7 @@ export default function TransferenciaLocal() {
       // 1) busca exata por nunota/chavenfe
       const { data: encontradosExatos, error: errorBuscaExata } = await supabase
         .from('nota')
-        .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
+        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
         .or(`nunota.eq.${termo},chavenfe.eq.${termo}`)
         .limit(100);
       if (errorBuscaExata) throw errorBuscaExata;
@@ -78,7 +78,7 @@ export default function TransferenciaLocal() {
       if (encontrados.length === 0) {
         const { data: encontradosParciais, error: errorBuscaParcial } = await supabase
           .from('nota')
-          .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
+          .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
           .or(`nunota.like.%${termo}%,chavenfe.like.%${termo}%`)
           .limit(100);
         if (errorBuscaParcial) throw errorBuscaParcial;
@@ -166,9 +166,14 @@ export default function TransferenciaLocal() {
 
       let enderecoDestino = (enderecosExist as EnderecoRegistro[] | null)?.[0] ?? null;
       if (!enderecoDestino) {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        const authId = authData.user?.id;
+        if (!authId) throw new Error('Sessão inválida. Faça login novamente.');
+
         const { data: novoEnderecoCriado, error: errCriarEnd } = await supabase
           .from('endereco')
-          .insert([{ descricao: descricaoDestino }])
+          .insert([{ descricao: descricaoDestino, auth_id: authId }])
           .select('codigo, descricao')
           .single();
         if (errCriarEnd) throw errCriarEnd;
@@ -190,7 +195,7 @@ export default function TransferenciaLocal() {
       // Confirmação real: reconsulta a nota no banco após update.
       const { data: notaAtualizadaRows, error: errNotaAtualizada } = await supabase
         .from('nota')
-        .select('codigo, codigo_endereco, codigo_usuario, nunota, chavenfe')
+        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
         .eq('codigo', notaEncontrada.codigo)
         .limit(1);
       if (errNotaAtualizada) throw errNotaAtualizada;
