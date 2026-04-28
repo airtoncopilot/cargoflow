@@ -1,19 +1,20 @@
 import { useState } from 'react';
 import { supabase } from '@/shared/supabase';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Warehouse, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Warehouse, FileText, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 
 export default function Doca() {
   const navigate = useNavigate();
   const [doca, setDoca] = useState('');
-  const [nota, setNota] = useState('');
+  const [notas, setNotas] = useState<string[]>(['']);
   const [success, setSuccess] = useState(false);
 
   
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (doca && nota) {
+    const notasValidas = notas.map((item) => item.trim()).filter(Boolean);
+    if (doca && notasValidas.length > 0) {
       try {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
@@ -65,33 +66,30 @@ export default function Doca() {
 
         if (!endereco) throw new Error('Falha ao obter/criar doca');
 
-        // inserir nota
-        // enviar como string para suportar números grandes
-        const nunotaVal = nota.trim() || null;
-        const { data: notaCriada, error: errNota } = await supabase
+        // insere todas as notas informadas para a mesma doca
+        const payloadNotas = notasValidas.map((notaAtual) => ({
+          auth_id: authId,
+          codigo_usuario: codigoUsuario,
+          codigo_endereco: endereco.codigo,
+          chavenfe: notaAtual,
+        }));
+        const { data: notasCriadas, error: errNota } = await supabase
           .from('nota')
-          .insert([
-            {
-              auth_id: authId,
-              codigo_usuario: codigoUsuario,
-              codigo_endereco: endereco.codigo,
-              chavenfe: nunotaVal,
-            },
-          ])
+          .insert(payloadNotas)
           .select()
-          .single();
+;
 
         if (errNota) throw errNota;
 
-        if (notaCriada) {
+        if (notasCriadas && notasCriadas.length > 0) {
           setSuccess(true);
           setTimeout(() => {
             setSuccess(false);
             setDoca('');
-            setNota('');
+            setNotas(['']);
           }, 3000);
         } else {
-          alert('Erro ao inserir nota');
+          alert('Erro ao inserir notas');
         }
       } catch (error) {
         console.error('Erro ao registrar nota na doca:', error);
@@ -99,6 +97,33 @@ export default function Doca() {
         alert(message);
       }
     }
+  };
+
+  const handleNotaChange = (index: number, value: string) => {
+    setNotas((prev) => {
+      const next = [...prev];
+      next[index] = value;
+
+      const preenchido = value.trim().length > 0;
+      const isUltimoCampo = index === next.length - 1;
+      if (preenchido && isUltimoCampo && next.length < 5) {
+        next.push('');
+      }
+
+      return next;
+    });
+  };
+
+  const handleRemoverNota = (index: number) => {
+    setNotas((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+
+      if (next.length === 0) {
+        return [''];
+      }
+
+      return next;
+    });
   };
 
   return (
@@ -133,8 +158,8 @@ export default function Doca() {
             <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-2xl p-4 flex items-center space-x-3">
               <CheckCircle className="w-6 h-6 text-green-400" />
               <div>
-                <p className="text-green-300 font-semibold">Nota registrada com sucesso!</p>
-                <p className="text-green-200 text-sm">Doca: {doca} | Nota: {nota}</p>
+                <p className="text-green-300 font-semibold">Notas registradas com sucesso!</p>
+                <p className="text-green-200 text-sm">Doca: {doca}</p>
               </div>
             </div>
           )}
@@ -161,23 +186,37 @@ export default function Doca() {
             <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 space-y-4">
               <div className="flex items-center space-x-3 mb-4">
                 <FileText className="w-6 h-6 text-blue-400" />
-                <h3 className="text-lg font-semibold text-white">Identificar Nota Fiscal</h3>
+                <h3 className="text-lg font-semibold text-white">Identificar Notas Fiscais (máx. 5)</h3>
               </div>
-              
-              <input
-                type="text"
-                placeholder="Número da nota fiscal"
-                value={nota}
-                onChange={(e) => setNota(e.target.value)}
-                className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all"
-                required
-              />
+
+              {notas.map((nota, index) => (
+                <div key={`nota-${index}`} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder={`Número da nota fiscal ${index + 1}`}
+                    value={nota}
+                    onChange={(e) => handleNotaChange(index, e.target.value)}
+                    className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all"
+                    required={index === 0}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoverNota(index)}
+                    disabled={notas.length === 1}
+                    className="inline-flex items-center justify-center p-3 rounded-xl border border-red-400/50 text-red-300 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    title="Remover esta nota"
+                    aria-label={`Remover nota ${index + 1}`}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
             </div>
 
             {/* Botão Registrar */}
             <button
               type="submit"
-              disabled={!doca || !nota}
+              disabled={!doca || notas.every((item) => !item.trim())}
               className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-5 px-6 rounded-2xl transition-all duration-200 transform hover:scale-105 shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               <CheckCircle className="w-6 h-6" />
