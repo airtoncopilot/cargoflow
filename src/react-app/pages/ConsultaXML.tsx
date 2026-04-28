@@ -25,7 +25,19 @@ export default function ConsultaXML() {
   const [resultado, setResultado] = useState<{
     encontrado: boolean;
     doca?: string | null;
+    usuarioLogin?: string | null;
   } | null>(null);
+
+  const buscarLoginUsuarioPorAuthId = async (authId: string | null | undefined) => {
+    if (!authId) return null;
+    const { data: usuarios, error: errUsuario } = await supabase
+      .from('usuario')
+      .select('login')
+      .eq('auth_id', authId)
+      .limit(1);
+    if (errUsuario) throw errUsuario;
+    return usuarios?.[0]?.login ?? null;
+  };
 
   const consultarPorNunota = async (nunotaTerm: string) => {
     setErro(null);
@@ -98,7 +110,8 @@ export default function ConsultaXML() {
         .limit(1);
       const endRows: EnderecoRegistro[] = errEnd ? [] : ((enderecos as unknown as EnderecoRegistro[] | null) ?? []);
       const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
-      setResultado({ encontrado: true, doca: endereco?.descricao ?? null });
+      const usuarioLogin = await buscarLoginUsuarioPorAuthId(nota.auth_id);
+      setResultado({ encontrado: true, doca: endereco?.descricao ?? null, usuarioLogin });
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao consultar');
     } finally {
@@ -154,7 +167,8 @@ export default function ConsultaXML() {
         .limit(1);
       const endRows: EnderecoRegistro[] = errEnd ? [] : ((enderecos as unknown as EnderecoRegistro[] | null) ?? []);
       const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
-      setResultado({ encontrado: true, doca: endereco?.descricao ?? null });
+      const usuarioLogin = await buscarLoginUsuarioPorAuthId(nota.auth_id);
+      setResultado({ encontrado: true, doca: endereco?.descricao ?? null, usuarioLogin });
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao consultar');
     } finally {
@@ -250,6 +264,9 @@ export default function ConsultaXML() {
                 <div className="flex items-center space-x-2 text-blue-200">
                   <MapPin className="w-5 h-5" />
                   <span>Doca vinculada: {resultado.doca || 'Não informada'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-blue-200">
+                  <span>Registrado por: {resultado.usuarioLogin || 'Não informado'}</span>
                 </div>
               </div>
             ) : (
