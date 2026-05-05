@@ -1,21 +1,87 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, AlertCircle, CheckCircle } from "lucide-react";
+import { ArrowLeft, Send, AlertCircle, CheckCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/shared/supabase";
 
 export default function DeletarNota() {
   const navigate = useNavigate();
-  const [nunota, setNunota] = useState("");
+  const [nunotas, setNunotas] = useState<string[]>([""]);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
 
+  const buscarNotas = async (termo: string) => {
+    // 1) Busca exata em nunota
+    const { data: exatosNunota, error: errorExataNunota } = await supabase
+      .from("nota")
+      .select("codigo, nunota, chavenfe")
+      .eq("nunota", termo)
+      .limit(100);
+    if (errorExataNunota) throw errorExataNunota;
+
+    // 2) Busca exata em chavenfe
+    const { data: exatosChave, error: errorExataChave } = await supabase
+      .from("nota")
+      .select("codigo, nunota, chavenfe")
+      .eq("chavenfe", termo)
+      .limit(100);
+    if (errorExataChave) throw errorExataChave;
+
+    let encontrados = [...(exatosNunota ?? []), ...(exatosChave ?? [])];
+
+    // 3) Fallback por busca parcial (cobre diferenças de formatação)
+    if (encontrados.length === 0) {
+      const likePattern = `%${termo}%`;
+
+      const { data: parciaisNunota, error: errorParcialNunota } = await supabase
+        .from("nota")
+        .select("codigo, nunota, chavenfe")
+        .like("nunota", likePattern)
+        .limit(100);
+      if (errorParcialNunota) throw errorParcialNunota;
+
+      const { data: parciaisChave, error: errorParcialChave } = await supabase
+        .from("nota")
+        .select("codigo, nunota, chavenfe")
+        .like("chavenfe", likePattern)
+        .limit(100);
+      if (errorParcialChave) throw errorParcialChave;
+
+      encontrados = [...(parciaisNunota ?? []), ...(parciaisChave ?? [])];
+    }
+
+    return encontrados;
+  };
+
+  const handleNunotaChange = (index: number, value: string) => {
+    setNunotas((prev) => {
+      const next = [...prev];
+      next[index] = value;
+
+      const preenchido = value.trim().length > 0;
+      const isUltimoCampo = index === next.length - 1;
+      if (preenchido && isUltimoCampo && next.length < 5) {
+        next.push("");
+      }
+
+      return next;
+    });
+  };
+
+  const handleRemoverNunota = (index: number) => {
+    setNunotas((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+      if (next.length === 0) return [""];
+      return next;
+    });
+  };
+
   const handleDelete = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const termo = nunota.trim();
-    if (!termo) {
-      setErro("Informe o nunota para remover.");
+    const termos = nunotas.map((item) => item.trim()).filter(Boolean);
+    if (termos.length === 0) {
+      setErro("Informe ao menos um nunota/chavenfe para remover.");
       setMensagem("");
       return;
     }
@@ -25,47 +91,14 @@ export default function DeletarNota() {
       setErro("");
       setMensagem("");
 
-      // 1) Busca exata em nunota
-      const { data: exatosNunota, error: errorExataNunota } = await supabase
-        .from("nota")
-        .select("codigo, nunota, chavenfe")
-        .eq("nunota", termo)
-        .limit(100);
-      if (errorExataNunota) throw errorExataNunota;
-
-      // 2) Busca exata em chavenfe
-      const { data: exatosChave, error: errorExataChave } = await supabase
-        .from("nota")
-        .select("codigo, nunota, chavenfe")
-        .eq("chavenfe", termo)
-        .limit(100);
-      if (errorExataChave) throw errorExataChave;
-
-      let encontrados = [...(exatosNunota ?? []), ...(exatosChave ?? [])];
-
-      // 3) Fallback por busca parcial (cobre diferenças de formatação)
-      if (encontrados.length === 0) {
-        const likePattern = `%${termo}%`;
-
-        const { data: parciaisNunota, error: errorParcialNunota } = await supabase
-          .from("nota")
-          .select("codigo, nunota, chavenfe")
-          .like("nunota", likePattern)
-          .limit(100);
-        if (errorParcialNunota) throw errorParcialNunota;
-
-        const { data: parciaisChave, error: errorParcialChave } = await supabase
-          .from("nota")
-          .select("codigo, nunota, chavenfe")
-          .like("chavenfe", likePattern)
-          .limit(100);
-        if (errorParcialChave) throw errorParcialChave;
-
-        encontrados = [...(parciaisNunota ?? []), ...(parciaisChave ?? [])];
+      let encontrados: Array<{ codigo: number; nunota: string; chavenfe: string }> = [];
+      for (const termo of termos) {
+        const encontradosTermo = await buscarNotas(termo);
+        encontrados = [...encontrados, ...encontradosTermo];
       }
 
       if (encontrados.length === 0) {
-        setErro("Nenhum registro encontrado para o nunota informado.");
+        setErro("Nenhum registro encontrado para as notas informadas.");
         return;
       }
 
@@ -86,8 +119,8 @@ export default function DeletarNota() {
         return;
       }
 
-      setMensagem(`${removidos.length} registro(s) removido(s) com sucesso.`);
-      setNunota("");
+      setMensagem(`${removidos.length} registro(s) removido(s) com sucesso para ${termos.length} nota(s) informada(s).`);
+      setNunotas([""]);
     } catch (deleteError) {
       const message =
         (deleteError as { message?: string }).message || "Erro ao remover registro.";
@@ -141,22 +174,36 @@ export default function DeletarNota() {
             <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 space-y-4">
               <div className="flex items-center space-x-3 mb-4">
                 <Send className="w-6 h-6 text-red-400" />
-                <h3 className="text-lg font-semibold text-white">Informar nunota</h3>
+                <h3 className="text-lg font-semibold text-white">Informar notas para expedir (max. 5)</h3>
               </div>
 
-              <input
-                type="text"
-                placeholder="Digite o nunota"
-                value={nunota}
-                onChange={(e) => setNunota(e.target.value)}
-                className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent backdrop-blur-sm transition-all"
-                required
-              />
+              {nunotas.map((nunota, index) => (
+                <div key={`nunota-${index}`} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder={`Digite o nunota/chavenfe ${index + 1}`}
+                    value={nunota}
+                    onChange={(e) => handleNunotaChange(index, e.target.value)}
+                    className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent backdrop-blur-sm transition-all"
+                    required={index === 0}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoverNunota(index)}
+                    disabled={nunotas.length === 1}
+                    className="inline-flex items-center justify-center p-3 rounded-xl border border-red-400/50 text-red-300 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    title="Remover esta nota"
+                    aria-label={`Remover nota ${index + 1}`}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
             </div>
 
             <button
               type="submit"
-              disabled={loading || !nunota.trim()}
+              disabled={loading || nunotas.every((item) => !item.trim())}
               className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-5 px-6 rounded-2xl transition-all duration-200 transform hover:scale-105 shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               <Send className="w-6 h-6" />
