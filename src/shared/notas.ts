@@ -17,8 +17,12 @@ export type NotaDetalhada = NotaRow & {
 };
 
 // Chave NF-e (44 dígitos): CNPJ do emitente nas posições 7-20, série 23-25, número 26-34.
+// Registros antigos guardam a chave em nunota em vez de chavenfe.
+const chaveDaNota = (nota: NotaRow) =>
+  [nota.chavenfe, nota.nunota].find((valor) => !!valor && /^\d{44}$/.test(valor)) ?? null;
+
 const lerChave = (chave: string | null) => {
-  if (!chave || !/^\d{44}$/.test(chave)) return null;
+  if (!chave) return null;
   return {
     cnpj: chave.substring(6, 20),
     serie: chave.substring(22, 25),
@@ -30,10 +34,37 @@ const formatarCnpj = (cnpj: string) =>
   cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 
 // Mesma nota (mesma chave) pode estar em várias docas.
-export const identificadorNota = (nota: NotaRow) => nota.chavenfe || nota.nunota || String(nota.codigo);
+export const identificadorNota = (nota: NotaRow) =>
+  chaveDaNota(nota) || nota.chavenfe || nota.nunota || String(nota.codigo);
 
 export const semDuplicados = <T extends NotaRow>(notas: T[]) =>
   notas.filter((nota, index) => notas.findIndex((n) => n.codigo === nota.codigo) === index);
+
+const COLUNAS_NOTA = 'codigo, codigo_endereco, auth_id, nunota, chavenfe';
+
+const consultarNotas = async (filtro: string) => {
+  const { data, error } = await supabase.from('nota').select(COLUNAS_NOTA).or(filtro).limit(100);
+  if (error) throw error;
+  return semDuplicados((data ?? []) as NotaRow[]);
+};
+
+export async function buscarNotasPorTermo(termoInformado: string): Promise<NotaRow[]> {
+  const termo = termoInformado.trim();
+
+  // Número da NF (até 9 dígitos): compara só o campo número da chave (posições 26-34),
+  // para não trazer outras notas que tenham esses dígitos em outra parte da chave.
+  if (/^\d{1,9}$/.test(termo)) {
+    const padrao = `${'_'.repeat(25)}${termo.padStart(9, '0')}%`;
+    return consultarNotas(
+      `chavenfe.like.${padrao},nunota.like.${padrao},chavenfe.eq.${termo},nunota.eq.${termo}`
+    );
+  }
+
+  // Chave bipada: busca exata; parcial só se não achar (cobre diferenças de formatação).
+  const exatos = await consultarNotas(`chavenfe.eq.${termo},nunota.eq.${termo}`);
+  if (exatos.length > 0) return exatos;
+  return consultarNotas(`chavenfe.like.%${termo}%,nunota.like.%${termo}%`);
+}
 
 export async function detalharNotas(notas: NotaRow[]): Promise<NotaDetalhada[]> {
   const codigosEndereco = [...new Set(notas.map((n) => n.codigo_endereco))];
@@ -53,7 +84,7 @@ export async function detalharNotas(notas: NotaRow[]): Promise<NotaDetalhada[]> 
   const loginUsuario = new Map((usuarios.data ?? []).map((u) => [u.auth_id as string, u.login as string]));
 
   return notas.map((nota) => {
-    const dados = lerChave(nota.chavenfe);
+    const dados = lerChave(chaveDaNota(nota));
     return {
       ...nota,
       empresa: dados ? nomeEmpresa.get(dados.cnpj) ?? formatarCnpj(dados.cnpj) : 'Empresa não identificada',

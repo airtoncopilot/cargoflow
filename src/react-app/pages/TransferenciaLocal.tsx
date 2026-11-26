@@ -10,7 +10,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase';
-import { detalharNotas, semDuplicados, type NotaDetalhada, type NotaRow } from '@/shared/notas';
+import { buscarNotasPorTermo, detalharNotas, type NotaDetalhada, type NotaRow } from '@/shared/notas';
 import ListaNotas from '@/react-app/components/ListaNotas';
 
 type NotaRegistro = NotaRow;
@@ -67,29 +67,8 @@ export default function TransferenciaLocal() {
     try {
       let nota: NotaRegistro | null = null;
 
-      // Mesmo critério da tela Deletar Nota:
-      // 1) busca exata por nunota/chavenfe
-      const { data: encontradosExatos, error: errorBuscaExata } = await supabase
-        .from('nota')
-        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
-        .or(`nunota.eq.${termo},chavenfe.eq.${termo}`)
-        .limit(100);
-      if (errorBuscaExata) throw errorBuscaExata;
-
-      let encontrados = (encontradosExatos as NotaRegistro[] | null) ?? [];
-
-      // 2) fallback por LIKE para cobrir diferenças de formatação
-      if (encontrados.length === 0) {
-        const { data: encontradosParciais, error: errorBuscaParcial } = await supabase
-          .from('nota')
-          .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
-          .or(`nunota.like.%${termo}%,chavenfe.like.%${termo}%`)
-          .limit(100);
-        if (errorBuscaParcial) throw errorBuscaParcial;
-        encontrados = (encontradosParciais as NotaRegistro[] | null) ?? [];
-      }
-
-      encontrados = semDuplicados(encontrados);
+      // Mesmo critério da tela Expedir.
+      const encontrados = await buscarNotasPorTermo(termo);
       nota = encontrados.length > 0 ? encontrados[0] : null;
 
       if (!nota) {

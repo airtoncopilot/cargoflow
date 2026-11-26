@@ -6,18 +6,20 @@ type Props = {
   titulo: string;
   textoBotao?: string;
   onEscolher?: (nota: NotaDetalhada) => void;
-  selecionada?: number | null;
+  selecionadas?: number[];
 };
 
-export default function ListaNotas({ notas, titulo, textoBotao, onEscolher, selecionada }: Props) {
+export default function ListaNotas({ notas, titulo, textoBotao, onEscolher, selecionadas }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-yellow-200 text-sm">{titulo}</p>
-      {notas.map((nota) => (
+      {notas.map((nota) => {
+        const marcada = selecionadas?.includes(nota.codigo) ?? false;
+        return (
         <div
           key={nota.codigo}
           className={`bg-slate-900/40 border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${
-            selecionada === nota.codigo ? 'border-green-400' : 'border-white/20'
+            marcada ? 'border-green-400' : 'border-white/20'
           }`}
         >
           <div className="flex-1 space-y-1 text-sm text-blue-100">
@@ -39,13 +41,16 @@ export default function ListaNotas({ notas, titulo, textoBotao, onEscolher, sele
             <button
               type="button"
               onClick={() => onEscolher(nota)}
-              className="w-full sm:w-auto px-4 py-3 sm:py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all"
+              className={`w-full sm:w-auto px-4 py-3 sm:py-2 rounded-xl border text-white transition-all ${
+                marcada ? 'bg-green-500/30 border-green-400' : 'bg-white/10 border-white/20 hover:bg-white/20'
+              }`}
             >
-              {textoBotao ?? 'Escolher'}
+              {marcada ? 'Marcada ✓' : textoBotao ?? 'Escolher'}
             </button>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

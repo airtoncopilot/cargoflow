@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Search, CheckCircle, AlertCircle, MapPin, Building2 } from 'lucide-react';
 import { supabase } from '@/shared/supabase';
-import { detalharNotas, semDuplicados, type NotaDetalhada, type NotaRow } from '@/shared/notas';
+import { buscarNotasPorTermo, detalharNotas, semDuplicados, type NotaDetalhada, type NotaRow } from '@/shared/notas';
 import ListaNotas from '@/react-app/components/ListaNotas';
 
 type NotaRegistro = NotaRow;
@@ -43,48 +43,7 @@ export default function ConsultaXML() {
         setErro('Informe o valor a buscar no campo nunota.');
         return;
       }
-      const { data: notasExatasNunota, error: errExataNunota } = await supabase
-        .from('nota')
-        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
-        .eq('nunota', termo)
-        .limit(100);
-      if (errExataNunota) throw errExataNunota;
-
-      const { data: notasExatasChave, error: errExataChave } = await supabase
-        .from('nota')
-        .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
-        .eq('chavenfe', termo)
-        .limit(100);
-      if (errExataChave) throw errExataChave;
-
-      let encontrados: NotaRegistro[] = [
-        ...((notasExatasNunota as NotaRegistro[] | null) ?? []),
-        ...((notasExatasChave as NotaRegistro[] | null) ?? []),
-      ];
-
-      if (encontrados.length === 0) {
-        const likePattern = `%${termo}%`;
-        const { data: notasParciaisNunota, error: errParcialNunota } = await supabase
-          .from('nota')
-          .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
-          .ilike('nunota', likePattern)
-          .limit(100);
-        if (errParcialNunota) throw errParcialNunota;
-
-        const { data: notasParciaisChave, error: errParcialChave } = await supabase
-          .from('nota')
-          .select('codigo, codigo_endereco, auth_id, nunota, chavenfe')
-          .ilike('chavenfe', likePattern)
-          .limit(100);
-        if (errParcialChave) throw errParcialChave;
-
-        encontrados = [
-          ...((notasParciaisNunota as NotaRegistro[] | null) ?? []),
-          ...((notasParciaisChave as NotaRegistro[] | null) ?? []),
-        ];
-      }
-
-      await mostrarResultado(encontrados);
+      await mostrarResultado(await buscarNotasPorTermo(termo));
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao consultar');
     } finally {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send, AlertCircle, CheckCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/shared/supabase";
-import { detalharNotas, identificadorNota, semDuplicados, type NotaDetalhada, type NotaRow } from "@/shared/notas";
+import { buscarNotasPorTermo, detalharNotas, identificadorNota, type NotaDetalhada, type NotaRow } from "@/shared/notas";
 import ListaNotas from "@/react-app/components/ListaNotas";
 
 type TermoAmbiguo = {
@@ -24,52 +24,14 @@ export default function DeletarNota() {
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
   const [pendencia, setPendencia] = useState<Pendencia | null>(null);
-  const [escolhas, setEscolhas] = useState<Record<string, NotaDetalhada>>({});
+  const [escolhas, setEscolhas] = useState<Record<string, NotaDetalhada[]>>({});
 
-  const buscarNotas = async (termo: string): Promise<NotaRow[]> => {
-    const colunas = "codigo, codigo_endereco, auth_id, nunota, chavenfe";
-
-    // 1) Busca exata em nunota
-    const { data: exatosNunota, error: errorExataNunota } = await supabase
-      .from("nota")
-      .select(colunas)
-      .eq("nunota", termo)
-      .limit(100);
-    if (errorExataNunota) throw errorExataNunota;
-
-    // 2) Busca exata em chavenfe
-    const { data: exatosChave, error: errorExataChave } = await supabase
-      .from("nota")
-      .select(colunas)
-      .eq("chavenfe", termo)
-      .limit(100);
-    if (errorExataChave) throw errorExataChave;
-
-    let encontrados = [...(exatosNunota ?? []), ...(exatosChave ?? [])];
-
-    // 3) Fallback por busca parcial (cobre diferenças de formatação)
-    if (encontrados.length === 0) {
-      const likePattern = `%${termo}%`;
-
-      const { data: parciaisNunota, error: errorParcialNunota } = await supabase
-        .from("nota")
-        .select(colunas)
-        .like("nunota", likePattern)
-        .limit(100);
-      if (errorParcialNunota) throw errorParcialNunota;
-
-      const { data: parciaisChave, error: errorParcialChave } = await supabase
-        .from("nota")
-        .select(colunas)
-        .like("chavenfe", likePattern)
-        .limit(100);
-      if (errorParcialChave) throw errorParcialChave;
-
-      encontrados = [...(parciaisNunota ?? []), ...(parciaisChave ?? [])];
-    }
-
-    return semDuplicados(encontrados as NotaRow[]);
-  };
+  const alternarEscolha = (termo: string, nota: NotaDetalhada) =>
+    setEscolhas((prev) => {
+      const atuais = prev[termo] ?? [];
+      const jaEscolhida = atuais.some((n) => n.codigo === nota.codigo);
+      return { ...prev, [termo]: jaEscolhida ? atuais.filter((n) => n.codigo !== nota.codigo) : [...atuais, nota] };
+    });
 
   // Uma opção por nota (chave); a mesma nota em várias docas aparece uma vez, com todas as docas.
   const montarOpcoes = async (termo: string, encontrados: NotaRow[]): Promise<TermoAmbiguo> => {
@@ -119,8 +81,8 @@ export default function DeletarNota() {
     try {
       setLoading(true);
       setErro("");
-      const codigosEscolhidos = pendencia.ambiguos.flatMap(
-        (item) => item.codigosPorNota[identificadorNota(escolhas[item.termo])]
+      const codigosEscolhidos = pendencia.ambiguos.flatMap((item) =>
+        (escolhas[item.termo] ?? []).flatMap((nota) => item.codigosPorNota[identificadorNota(nota)])
       );
       await expedir([...pendencia.codigosDiretos, ...codigosEscolhidos], pendencia.totalTermos);
     } catch (deleteError) {
@@ -178,7 +140,7 @@ export default function DeletarNota() {
       const codigosDiretos: number[] = [];
       const ambiguos: TermoAmbiguo[] = [];
       for (const termo of termos) {
-        const encontradosTermo = await buscarNotas(termo);
+        const encontradosTermo = await buscarNotasPorTermo(termo);
         const notasDistintas = new Set(encontradosTermo.map(identificadorNota));
         if (notasDistintas.size > 1) {
           // Notas diferentes (ex.: mesmo número em empresas diferentes): não apaga sem o operador escolher.
@@ -292,7 +254,7 @@ export default function DeletarNota() {
           {pendencia && (
             <div className="mt-6 bg-white/10 backdrop-blur-xl border border-yellow-400/50 rounded-2xl p-6 space-y-6">
               <p className="text-yellow-200 font-semibold">
-                Nada foi expedido ainda. Escolha qual nota expedir para cada número abaixo:
+                Nada foi expedido ainda. Marque uma ou mais notas para expedir em cada número abaixo:
               </p>
               {pendencia.ambiguos.map((item) => (
                 <ListaNotas
@@ -300,14 +262,14 @@ export default function DeletarNota() {
                   notas={item.opcoes}
                   titulo={`"${item.termo}" corresponde a ${item.opcoes.length} notas diferentes:`}
                   textoBotao="Expedir esta"
-                  selecionada={escolhas[item.termo]?.codigo ?? null}
-                  onEscolher={(nota) => setEscolhas((prev) => ({ ...prev, [item.termo]: nota }))}
+                  selecionadas={(escolhas[item.termo] ?? []).map((nota) => nota.codigo)}
+                  onEscolher={(nota) => alternarEscolha(item.termo, nota)}
                 />
               ))}
               <button
                 type="button"
                 onClick={handleConfirmarEscolhas}
-                disabled={loading || pendencia.ambiguos.some((item) => !escolhas[item.termo])}
+                disabled={loading || pendencia.ambiguos.some((item) => !escolhas[item.termo]?.length)}
                 className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-5 h-5" />
