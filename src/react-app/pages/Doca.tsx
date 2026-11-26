@@ -14,7 +14,7 @@ export default function Doca() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const notasValidas = notas.map((item) => item.trim()).filter(Boolean);
-    if (doca && notasValidas.length > 0) {
+    if (doca.trim() && notasValidas.length > 0) {
       try {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
@@ -34,30 +34,22 @@ export default function Doca() {
           throw new Error('Usuário sem vínculo na tabela usuario.');
         }
 
-        // upsert endereço (doca)
-        const { data: enderecosByAuth, error: errBuscaEndAuth } = await supabase
+        // Reaproveita a doca já cadastrada por qualquer usuário (sem diferenciar maiúsculas/minúsculas);
+        // só cria uma linha nova se a doca nunca existiu.
+        const descricaoDoca = doca.trim();
+        const { data: enderecosExistentes, error: errBuscaEnd } = await supabase
           .from('endereco')
           .select('*')
-          .eq('descricao', doca)
-          .eq('auth_id', authId)
+          .ilike('descricao', descricaoDoca.replace(/[\\%_]/g, '\\$&'))
+          .order('codigo')
           .limit(1);
-        if (errBuscaEndAuth) throw errBuscaEndAuth;
+        if (errBuscaEnd) throw errBuscaEnd;
 
-        let endereco = enderecosByAuth && enderecosByAuth.length > 0 ? enderecosByAuth[0] : null;
-        if (!endereco) {
-          const { data: enderecosByCodigo, error: errBuscaEndCodigo } = await supabase
-            .from('endereco')
-            .select('*')
-            .eq('descricao', doca)
-            .eq('codigo_usuario', codigoUsuario)
-            .limit(1);
-          if (errBuscaEndCodigo) throw errBuscaEndCodigo;
-          endereco = enderecosByCodigo && enderecosByCodigo.length > 0 ? enderecosByCodigo[0] : null;
-        }
+        let endereco = enderecosExistentes && enderecosExistentes.length > 0 ? enderecosExistentes[0] : null;
         if (!endereco) {
           const { data: enderecoNovo, error: errEndIns } = await supabase
             .from('endereco')
-            .insert([{ auth_id: authId, codigo_usuario: codigoUsuario, descricao: doca }])
+            .insert([{ auth_id: authId, codigo_usuario: codigoUsuario, descricao: descricaoDoca }])
             .select()
             .single();
           if (errEndIns) throw errEndIns;
