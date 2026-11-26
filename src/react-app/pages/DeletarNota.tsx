@@ -2,6 +2,20 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send, AlertCircle, CheckCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/shared/supabase";
+import { detalharNotas, identificadorNota, semDuplicados, type NotaDetalhada, type NotaRow } from "@/shared/notas";
+import ListaNotas from "@/react-app/components/ListaNotas";
+
+type TermoAmbiguo = {
+  termo: string;
+  opcoes: NotaDetalhada[];
+  codigosPorNota: Record<string, number[]>;
+};
+
+type Pendencia = {
+  codigosDiretos: number[];
+  ambiguos: TermoAmbiguo[];
+  totalTermos: number;
+};
 
 export default function DeletarNota() {
   const navigate = useNavigate();
@@ -9,12 +23,16 @@ export default function DeletarNota() {
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
+  const [pendencia, setPendencia] = useState<Pendencia | null>(null);
+  const [escolhas, setEscolhas] = useState<Record<string, NotaDetalhada>>({});
 
-  const buscarNotas = async (termo: string) => {
+  const buscarNotas = async (termo: string): Promise<NotaRow[]> => {
+    const colunas = "codigo, codigo_endereco, auth_id, nunota, chavenfe";
+
     // 1) Busca exata em nunota
     const { data: exatosNunota, error: errorExataNunota } = await supabase
       .from("nota")
-      .select("codigo, nunota, chavenfe")
+      .select(colunas)
       .eq("nunota", termo)
       .limit(100);
     if (errorExataNunota) throw errorExataNunota;
@@ -22,7 +40,7 @@ export default function DeletarNota() {
     // 2) Busca exata em chavenfe
     const { data: exatosChave, error: errorExataChave } = await supabase
       .from("nota")
-      .select("codigo, nunota, chavenfe")
+      .select(colunas)
       .eq("chavenfe", termo)
       .limit(100);
     if (errorExataChave) throw errorExataChave;
@@ -35,14 +53,14 @@ export default function DeletarNota() {
 
       const { data: parciaisNunota, error: errorParcialNunota } = await supabase
         .from("nota")
-        .select("codigo, nunota, chavenfe")
+        .select(colunas)
         .like("nunota", likePattern)
         .limit(100);
       if (errorParcialNunota) throw errorParcialNunota;
 
       const { data: parciaisChave, error: errorParcialChave } = await supabase
         .from("nota")
-        .select("codigo, nunota, chavenfe")
+        .select(colunas)
         .like("chavenfe", likePattern)
         .limit(100);
       if (errorParcialChave) throw errorParcialChave;
@@ -50,10 +68,71 @@ export default function DeletarNota() {
       encontrados = [...(parciaisNunota ?? []), ...(parciaisChave ?? [])];
     }
 
-    return encontrados;
+    return semDuplicados(encontrados as NotaRow[]);
+  };
+
+  // Uma opção por nota (chave); a mesma nota em várias docas aparece uma vez, com todas as docas.
+  const montarOpcoes = async (termo: string, encontrados: NotaRow[]): Promise<TermoAmbiguo> => {
+    const detalhadas = await detalharNotas(encontrados);
+    const codigosPorNota: Record<string, number[]> = {};
+    const opcoes: NotaDetalhada[] = [];
+    for (const nota of detalhadas) {
+      const id = identificadorNota(nota);
+      if (!codigosPorNota[id]) {
+        codigosPorNota[id] = [];
+        opcoes.push({ ...nota });
+      } else {
+        const opcao = opcoes.find((o) => identificadorNota(o) === id)!;
+        if (nota.doca && !opcao.doca?.split(", ").includes(nota.doca)) {
+          opcao.doca = opcao.doca ? `${opcao.doca}, ${nota.doca}` : nota.doca;
+        }
+      }
+      codigosPorNota[id].push(nota.codigo);
+    }
+    return { termo, opcoes, codigosPorNota };
+  };
+
+  const expedir = async (codigos: number[], totalTermos: number) => {
+    const { data: removidos, error: errorDelete } = await supabase
+      .from("nota")
+      .delete()
+      .in("codigo", [...new Set(codigos)])
+      .select("codigo");
+
+    if (errorDelete) throw errorDelete;
+
+    if (!removidos || removidos.length === 0) {
+      setErro(
+        "Registros localizados, mas não foi possível remover. Verifique permissões de DELETE (RLS) no Supabase."
+      );
+      return;
+    }
+
+    setMensagem(`${removidos.length} registro(s) removido(s) com sucesso para ${totalTermos} nota(s) informada(s).`);
+    setNunotas([""]);
+    setPendencia(null);
+    setEscolhas({});
+  };
+
+  const handleConfirmarEscolhas = async () => {
+    if (!pendencia) return;
+    try {
+      setLoading(true);
+      setErro("");
+      const codigosEscolhidos = pendencia.ambiguos.flatMap(
+        (item) => item.codigosPorNota[identificadorNota(escolhas[item.termo])]
+      );
+      await expedir([...pendencia.codigosDiretos, ...codigosEscolhidos], pendencia.totalTermos);
+    } catch (deleteError) {
+      setErro((deleteError as { message?: string }).message || "Erro ao remover registro.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleNunotaChange = (index: number, value: string) => {
+    setPendencia(null);
+    setEscolhas({});
     setNunotas((prev) => {
       const next = [...prev];
       next[index] = value;
@@ -69,6 +148,8 @@ export default function DeletarNota() {
   };
 
   const handleRemoverNunota = (index: number) => {
+    setPendencia(null);
+    setEscolhas({});
     setNunotas((prev) => {
       const next = prev.filter((_, idx) => idx !== index);
       if (next.length === 0) return [""];
@@ -91,36 +172,33 @@ export default function DeletarNota() {
       setErro("");
       setMensagem("");
 
-      let encontrados: Array<{ codigo: number; nunota: string; chavenfe: string }> = [];
+      setPendencia(null);
+      setEscolhas({});
+
+      const codigosDiretos: number[] = [];
+      const ambiguos: TermoAmbiguo[] = [];
       for (const termo of termos) {
         const encontradosTermo = await buscarNotas(termo);
-        encontrados = [...encontrados, ...encontradosTermo];
+        const notasDistintas = new Set(encontradosTermo.map(identificadorNota));
+        if (notasDistintas.size > 1) {
+          // Notas diferentes (ex.: mesmo número em empresas diferentes): não apaga sem o operador escolher.
+          ambiguos.push(await montarOpcoes(termo, encontradosTermo));
+        } else {
+          codigosDiretos.push(...encontradosTermo.map((item) => item.codigo));
+        }
       }
 
-      if (encontrados.length === 0) {
+      if (codigosDiretos.length === 0 && ambiguos.length === 0) {
         setErro("Nenhum registro encontrado para as notas informadas.");
         return;
       }
 
-      // 4) Remove duplicidades e apaga pelos códigos encontrados
-      const codigos = [...new Set(encontrados.map((item) => item.codigo))];
-      const { data: removidos, error: errorDelete } = await supabase
-        .from("nota")
-        .delete()
-        .in("codigo", codigos)
-        .select("codigo");
-
-      if (errorDelete) throw errorDelete;
-
-      if (!removidos || removidos.length === 0) {
-        setErro(
-          "Registros localizados, mas não foi possível remover. Verifique permissões de DELETE (RLS) no Supabase."
-        );
+      if (ambiguos.length > 0) {
+        setPendencia({ codigosDiretos, ambiguos, totalTermos: termos.length });
         return;
       }
 
-      setMensagem(`${removidos.length} registro(s) removido(s) com sucesso para ${termos.length} nota(s) informada(s).`);
-      setNunotas([""]);
+      await expedir(codigosDiretos, termos.length);
     } catch (deleteError) {
       const message =
         (deleteError as { message?: string }).message || "Erro ao remover registro.";
@@ -210,6 +288,33 @@ export default function DeletarNota() {
               <span>{loading ? "Expedindo..." : "Confirmar Expedição"}</span>
             </button>
           </form>
+
+          {pendencia && (
+            <div className="mt-6 bg-white/10 backdrop-blur-xl border border-yellow-400/50 rounded-2xl p-6 space-y-6">
+              <p className="text-yellow-200 font-semibold">
+                Nada foi expedido ainda. Escolha qual nota expedir para cada número abaixo:
+              </p>
+              {pendencia.ambiguos.map((item) => (
+                <ListaNotas
+                  key={item.termo}
+                  notas={item.opcoes}
+                  titulo={`"${item.termo}" corresponde a ${item.opcoes.length} notas diferentes:`}
+                  textoBotao="Expedir esta"
+                  selecionada={escolhas[item.termo]?.codigo ?? null}
+                  onEscolher={(nota) => setEscolhas((prev) => ({ ...prev, [item.termo]: nota }))}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={handleConfirmarEscolhas}
+                disabled={loading || pendencia.ambiguos.some((item) => !escolhas[item.termo])}
+                className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send className="w-5 h-5" />
+                <span>{loading ? "Expedindo..." : "Confirmar notas escolhidas"}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

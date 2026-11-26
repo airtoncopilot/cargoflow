@@ -10,14 +10,10 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase';
+import { detalharNotas, semDuplicados, type NotaDetalhada, type NotaRow } from '@/shared/notas';
+import ListaNotas from '@/react-app/components/ListaNotas';
 
-type NotaRegistro = {
-  codigo: number;
-  codigo_endereco: number;
-  auth_id: string;
-  nunota: string | null;
-  chavenfe: string | null;
-};
+type NotaRegistro = NotaRow;
 
 type EnderecoRegistro = {
   codigo: number;
@@ -43,6 +39,13 @@ export default function TransferenciaLocal() {
   const [notaEncontrada, setNotaEncontrada] = useState<NotaRegistro | null>(null);
   const [enderecoAtual, setEnderecoAtual] = useState<EnderecoRegistro | null>(null);
   const [auditoriaTransferencia, setAuditoriaTransferencia] = useState<AuditoriaTransferencia | null>(null);
+  const [opcoes, setOpcoes] = useState<NotaDetalhada[]>([]);
+
+  const escolherNota = (nota: NotaDetalhada) => {
+    setNotaEncontrada(nota);
+    setEnderecoAtual({ codigo: nota.codigo_endereco, descricao: nota.doca });
+    setOpcoes([]);
+  };
 
   const buscarNota = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +55,7 @@ export default function TransferenciaLocal() {
     setEnderecoAtual(null);
     setAuditoriaTransferencia(null);
     setNovoEndereco('');
+    setOpcoes([]);
 
     const termo = buscaNota.trim();
     if (!termo) {
@@ -85,12 +89,17 @@ export default function TransferenciaLocal() {
         encontrados = (encontradosParciais as NotaRegistro[] | null) ?? [];
       }
 
-      // Mantido exatamente como na tela Deletar Nota:
-      // usa o primeiro registro encontrado após busca exata/parcial.
+      encontrados = semDuplicados(encontrados);
       nota = encontrados.length > 0 ? encontrados[0] : null;
 
       if (!nota) {
         setErro('Nota não encontrada para o número/XML informado.');
+        return;
+      }
+
+      // Mais de um registro (empresas diferentes ou a mesma nota em várias docas): o operador escolhe.
+      if (encontrados.length > 1) {
+        setOpcoes(await detalharNotas(encontrados));
         return;
       }
 
@@ -274,6 +283,17 @@ export default function TransferenciaLocal() {
             </button>
           </div>
         </form>
+
+        {opcoes.length > 0 && (
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6">
+            <ListaNotas
+              notas={opcoes}
+              titulo={`${opcoes.length} registros encontrados. Escolha qual deseja transferir:`}
+              textoBotao="Transferir esta"
+              onEscolher={escolherNota}
+            />
+          </div>
+        )}
 
         {notaEncontrada && (
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 space-y-4">

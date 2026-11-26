@@ -1,20 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Search, CheckCircle, AlertCircle, MapPin } from 'lucide-react';
+import { ArrowLeft, FileText, Search, CheckCircle, AlertCircle, MapPin, Building2 } from 'lucide-react';
 import { supabase } from '@/shared/supabase';
+import { detalharNotas, semDuplicados, type NotaDetalhada, type NotaRow } from '@/shared/notas';
+import ListaNotas from '@/react-app/components/ListaNotas';
 
-type NotaRegistro = {
-  codigo: number;
-  codigo_endereco: number;
-  auth_id: string;
-  nunota: string | null;
-  chavenfe: string | null;
-};
-
-type EnderecoRegistro = {
-  codigo: number;
-  descricao: string | null;
-};
+type NotaRegistro = NotaRow;
 
 export default function ConsultaXML() {
   const navigate = useNavigate();
@@ -24,19 +15,16 @@ export default function ConsultaXML() {
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{
     encontrado: boolean;
-    doca?: string | null;
-    usuarioLogin?: string | null;
+    notas?: NotaDetalhada[];
   } | null>(null);
 
-  const buscarLoginUsuarioPorAuthId = async (authId: string | null | undefined) => {
-    if (!authId) return null;
-    const { data: usuarios, error: errUsuario } = await supabase
-      .from('usuario')
-      .select('login')
-      .eq('auth_id', authId)
-      .limit(1);
-    if (errUsuario) throw errUsuario;
-    return usuarios?.[0]?.login ?? null;
+  const mostrarResultado = async (encontrados: NotaRegistro[]) => {
+    const notas = semDuplicados(encontrados);
+    if (notas.length === 0) {
+      setResultado({ encontrado: false });
+      return;
+    }
+    setResultado({ encontrado: true, notas: await detalharNotas(notas) });
   };
 
   const consultarPorNunota = async (nunotaTerm: string) => {
@@ -96,22 +84,7 @@ export default function ConsultaXML() {
         ];
       }
 
-      const nota: NotaRegistro | null = encontrados.length > 0 ? encontrados[0] : null;
-
-      if (!nota) {
-        setResultado({ encontrado: false });
-        return;
-      }
-
-      const { data: enderecos, error: errEnd } = await supabase
-        .from('endereco')
-        .select('codigo, descricao')
-        .eq('codigo', nota.codigo_endereco)
-        .limit(1);
-      const endRows: EnderecoRegistro[] = errEnd ? [] : ((enderecos as unknown as EnderecoRegistro[] | null) ?? []);
-      const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
-      const usuarioLogin = await buscarLoginUsuarioPorAuthId(nota.auth_id);
-      setResultado({ encontrado: true, doca: endereco?.descricao ?? null, usuarioLogin });
+      await mostrarResultado(encontrados);
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao consultar');
     } finally {
@@ -152,23 +125,7 @@ export default function ConsultaXML() {
         .limit(100);
       if (errNota) throw errNota;
 
-      const notasRows: NotaRegistro[] = (notas as unknown as NotaRegistro[] | null) ?? [];
-      const nota: NotaRegistro | null = notasRows.length > 0 ? notasRows[0] : null;
-
-      if (!nota) {
-        setResultado({ encontrado: false });
-        return;
-      }
-
-      const { data: enderecos, error: errEnd } = await supabase
-        .from('endereco')
-        .select('codigo, descricao')
-        .eq('codigo', nota.codigo_endereco)
-        .limit(1);
-      const endRows: EnderecoRegistro[] = errEnd ? [] : ((enderecos as unknown as EnderecoRegistro[] | null) ?? []);
-      const endereco: EnderecoRegistro | null = endRows.length > 0 ? endRows[0] : null;
-      const usuarioLogin = await buscarLoginUsuarioPorAuthId(nota.auth_id);
-      setResultado({ encontrado: true, doca: endereco?.descricao ?? null, usuarioLogin });
+      await mostrarResultado((notas as unknown as NotaRegistro[] | null) ?? []);
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao consultar');
     } finally {
@@ -255,18 +212,27 @@ export default function ConsultaXML() {
 
         {resultado && (
           <div className="mt-6">
-            {resultado.encontrado ? (
+            {resultado.encontrado && resultado.notas && resultado.notas.length > 1 ? (
+              <ListaNotas
+                notas={resultado.notas}
+                titulo={`${resultado.notas.length} registros encontrados. Confira a empresa e a doca de cada um:`}
+              />
+            ) : resultado.encontrado && resultado.notas ? (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 <div className="flex items-center space-x-3 text-green-200">
                   <CheckCircle className="w-5 h-5" />
                   <span>Nota encontrada.</span>
                 </div>
                 <div className="flex items-center space-x-2 text-blue-200">
-                  <MapPin className="w-5 h-5" />
-                  <span>Doca vinculada: {resultado.doca || 'Não informada'}</span>
+                  <Building2 className="w-5 h-5" />
+                  <span>{resultado.notas[0].empresa}</span>
                 </div>
                 <div className="flex items-center space-x-2 text-blue-200">
-                  <span>Registrado por: {resultado.usuarioLogin || 'Não informado'}</span>
+                  <MapPin className="w-5 h-5" />
+                  <span>Doca vinculada: {resultado.notas[0].doca || 'Não informada'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-blue-200">
+                  <span>Registrado por: {resultado.notas[0].registradoPor || 'Não informado'}</span>
                 </div>
               </div>
             ) : (

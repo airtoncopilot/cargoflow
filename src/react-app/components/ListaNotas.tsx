@@ -1,0 +1,51 @@
+import { Building2, MapPin } from 'lucide-react';
+import type { NotaDetalhada } from '@/shared/notas';
+
+type Props = {
+  notas: NotaDetalhada[];
+  titulo: string;
+  textoBotao?: string;
+  onEscolher?: (nota: NotaDetalhada) => void;
+  selecionada?: number | null;
+};
+
+export default function ListaNotas({ notas, titulo, textoBotao, onEscolher, selecionada }: Props) {
+  return (
+    <div className="space-y-3">
+      <p className="text-yellow-200 text-sm">{titulo}</p>
+      {notas.map((nota) => (
+        <div
+          key={nota.codigo}
+          className={`bg-slate-900/40 border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${
+            selecionada === nota.codigo ? 'border-green-400' : 'border-white/20'
+          }`}
+        >
+          <div className="flex-1 space-y-1 text-sm text-blue-100">
+            <p className="flex items-center gap-2 font-semibold text-white">
+              <Building2 className="w-4 h-4" />
+              {nota.empresa}
+            </p>
+            <p>
+              NF {nota.numero ?? '-'}
+              {nota.serie ? ` · Série ${Number(nota.serie)}` : ''}
+            </p>
+            <p className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Doca: {nota.doca || 'Não informada'}
+            </p>
+            {nota.registradoPor && <p>Registrado por: {nota.registradoPor}</p>}
+          </div>
+          {onEscolher && (
+            <button
+              type="button"
+              onClick={() => onEscolher(nota)}
+              className="w-full sm:w-auto px-4 py-3 sm:py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all"
+            >
+              {textoBotao ?? 'Escolher'}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
